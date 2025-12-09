@@ -13,6 +13,17 @@ To work with the latest version, clone the repository with:
 ```
 git clone https://github.com/Mirpri/Pong-N.git -b deeplearning
 ```
+
+Install necessary packages:
+```
+pip install sv-ttk keyboard
+```
+
+Needed for "ai.py" profile:
+```
+pip install numpy
+```
+
 ### Get playing data
 Turn on 'Log' feature in the latest version by clicking on the 'Log' button before match starts.
 
