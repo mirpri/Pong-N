@@ -135,10 +135,38 @@ def get_agent_input(state: list, player: int) -> np.ndarray:
     # The agent input is [ball_x, ball_y, ball_vx, ball_vy, my_pad_pos]
     return np.array([x, y, vx, vy, pad_pos], dtype=np.float32)
 
-def calculate_reward(current_state: np.ndarray, last_state: np.ndarray, player: int) -> float:
+BOARD_WIDTH = 800
+PLAYER_PAD_Y_COORD = 700
+def get_target_x(ball_x, ball_y, ball_vx, ball_vy, target_y):
+    """
+    predict the x coordinate where the ball will reach the target_y line.
+    """
+    if ball_vy == 0:
+        return ball_x
+    
+    # 1. calculate time to reach target_y
+    time_to_target = abs(target_y - ball_y) / abs(ball_vy)
+    
+    # 2. calculate horizontal displacement
+    displacement_x = ball_vx * time_to_target
+    
+    # 3. calculate predicted x position
+    predicted_x = ball_x + displacement_x
+    
+    # 4. handle boundary reflection (simplified: only consider one bounce)
+    # if predicted position is out of bounds (0 to BOARD_WIDTH)
+    if predicted_x < 0:
+        # after bounce, distance from left boundary
+        return abs(predicted_x)
+    elif predicted_x > BOARD_WIDTH:
+        # after bounce, distance from right boundary
+        return BOARD_WIDTH - (predicted_x - BOARD_WIDTH)
+    else:
+        return predicted_x
+
+def calculate_reward(current_state: np.ndarray, last_state: np.ndarray, player: int, last_action: int) -> float:
     """
     Calculate the reward based on the transition between the last state and the current state.
-    *** CRITICAL: YOU NEED TO FINE-TUNE THIS REWARD LOGIC ***
     """
     _, last_y, _, last_vy, _ = last_state
     _, current_y, _, current_vy, pad_pos = current_state
@@ -152,17 +180,27 @@ def calculate_reward(current_state: np.ndarray, last_state: np.ndarray, player: 
         
         if is_my_turn:
             # Check for successful hit (ball changes vertical direction on my side)
-            reward += 1.0 # HUGE POSITIVE REWARD for hitting the ball
+            reward += 100.0 # HUGE POSITIVE REWARD for hitting the ball
+            print("Successful hit! Rewarded.")
         
         # Check for loss (ball flies past the target Y)
         if last_y < PLAYER_PAD_Y_COORD and current_y >= PLAYER_PAD_Y_COORD and current_vy > 0:
             reward -= 10.0 # HUGE NEGATIVE REWARD for missing the ball
-             
-    # 2. Simple movement reward (encourage staying near the ball's X coordinate)
-    ball_x = current_state[0]
-    distance_to_ball = abs(ball_x - pad_pos)
-    reward -= distance_to_ball / 1000.0 # Small penalty for being far from the ball
+            print("Missed the ball! Heavy penalty.")
     
+    # 3. Simple reward for moving towards the calculated target position
+    target_x = get_target_x(current_state[0], current_state[1], current_state[2], current_state[3], PLAYER_PAD_Y_COORD)
+    if pad_pos < target_x:
+        if( last_action == 1):
+            reward += 0.1 # Small reward for moving towards target
+        else:
+            reward -= 0.1 # Small penalty for not moving towards target
+    elif pad_pos > target_x:
+        if( last_action == 2):
+            reward += 0.1 # Small reward for moving towards target
+        else:
+            reward -= 0.1 # Small penalty for not moving towards target
+
     return reward
 
 def control(state: list, player: int) -> int:
@@ -183,7 +221,7 @@ def control(state: list, player: int) -> int:
     # 2. TRAINING/REPLAY STEP (Skip if this is the very first step of the game)
     if global_last_state is not None:
         # Calculate reward based on the transition from last_state to current_agent_input
-        reward = calculate_reward(current_agent_input, global_last_state, global_player_id)
+        reward = calculate_reward(current_agent_input, global_last_state, global_player_id, global_last_action)
         
         # Termination: Assume the episode terminates if the reward is extremely negative (a miss)
         terminated = reward < -5.0
@@ -200,6 +238,7 @@ def control(state: list, player: int) -> int:
         # Save model occasionally (e.g., every 500 steps)
         if np.random.rand() < 0.002: # Save roughly every 500 steps on average
             global_agent.save(MODEL_FILE)
+            print(f"Model saved to {MODEL_FILE}")
     
     # 3. ACTION SELECTION
     action_id = global_agent.act(current_agent_input)
