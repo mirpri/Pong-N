@@ -1,0 +1,14 @@
+{
+    "log":true,
+    "p1":{
+        "control":"RL",
+        "name":"balanced"
+    },
+    "p2":{
+        "control":"predict",
+        "name":"player2"
+    },
+    "max_points":1000,
+    "auto_continue":true,
+    "no_wait":true
+}

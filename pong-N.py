@@ -9,8 +9,13 @@ import sv_ttk
 import ctypes
 import os
 import importlib.util
+import json
 
 from default_controls import *
+
+MAX_POINTS = 5
+AUTO_SERVE = False
+NO_WAIT = False
 
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
@@ -372,6 +377,8 @@ def game():
     root.update()
     #keyboard.wait('space')
     while gaming:
+        if AUTO_SERVE:
+            break
         if keyboard.is_pressed('space'):
             break
         time.sleep(0.02)
@@ -503,6 +510,9 @@ def game():
         if LOGSTATE and tick%2==0:
             LOGDATA.append([x,y,vx,vy,a,p1,p2,v1,v2])
 
+        if NO_WAIT:
+            continue
+
         sleep_t=(1/25)-time.time()+s_t
         if sleep_t>0:
             time.sleep(sleep_t)
@@ -532,7 +542,7 @@ def startmatch(event=0):
     if ch1.get():
         _thread.start_new_thread(match,(3,1))
     else:
-        _thread.start_new_thread(match,())
+        _thread.start_new_thread(match,(MAX_POINTS,))
 
 
 def togglelog():
@@ -571,6 +581,7 @@ B3=Button(F3,text='🔆',command=themealt,width=3)
 B3.pack(padx=2)
 #keyboard.is_pressed('a')
 #_thread.start_new_thread(game,())
+# TODO: add model traininng mode: consecutive and background executions
 
 def forcestop(x):
     global gaming
@@ -578,6 +589,47 @@ def forcestop(x):
 
 
 
+
+def load_config():
+    global MAX_POINTS, AUTO_SERVE, LOGSTATE
+    if os.path.exists('config.json'):
+        try:
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+            
+            if 'p1' in config:
+                if 'name' in config['p1'] and config['p1']['name'] in p_name:
+                    C1.set(config['p1']['name'])
+                if 'control' in config['p1'] and config['p1']['control'] in controls:
+                    C11.set(config['p1']['control'])
+            
+            if 'p2' in config:
+                if 'name' in config['p2'] and config['p2']['name'] in p_name:
+                    C2.set(config['p2']['name'])
+                if 'control' in config['p2'] and config['p2']['control'] in controls:
+                    C22.set(config['p2']['control'])
+            
+            todrawpad(0)
+            setcontrol(0)
+
+            if 'max_points' in config:
+                MAX_POINTS = config['max_points']
+            
+            if 'auto_continue' in config:
+                AUTO_SERVE = config['auto_continue']
+            
+            if 'log' in config and config['log']:
+                if not LOGSTATE:
+                    togglelog()
+            
+            if 'no_wait' in config:
+                NO_WAIT = config['no_wait']
+            
+            print("Config loaded")
+        except Exception as e:
+            print(f"Error loading config: {e}")
+
+load_config()
 
 root.bind('<Escape>',forcestop)
 root.bind('<Return>',startmatch)
