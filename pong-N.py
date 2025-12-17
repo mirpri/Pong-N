@@ -288,8 +288,12 @@ def match(ii=5,allrandom=0):
     global gaming
     gaming=1    
     s1=s2=0
-    L1.config(text='  |  '+'⚫'*s1+'⚪'*(ii-s1))
-    L2.config(text='  |  '+'⚫'*s2+'⚪'*(ii-s2))
+    if ii<10:
+        L1.config(text='  |  '+'⚫'*s1+'⚪'*(ii-s1))
+        L2.config(text='  |  '+'⚫'*s2+'⚪'*(ii-s2))
+    else:
+        L1.config(text=f'  |  {s1} / {ii}')
+        L2.config(text=f'  |  {s2} / {ii}')
     c1=C1.get()
     c2=C2.get()
     if c1=='<random>':
@@ -316,10 +320,14 @@ def match(ii=5,allrandom=0):
             s2+=1
         if s1==s2 and s1==ii-1 and ii<10:
             ii+=1
-        if gaming:
+        if gaming and not NO_WAIT:
             presentstar(win)
-        L1.config(text='  |  '+'⚫'*s1+'⚪'*(ii-s1))
-        L2.config(text='  |  '+'⚫'*s2+'⚪'*(ii-s2))
+        if (ii<10):
+            L1.config(text='  |  '+'⚫'*s1+'⚪'*(ii-s1))
+            L2.config(text='  |  '+'⚫'*s2+'⚪'*(ii-s2))
+        else:
+            L1.config(text=f'  |  {s1} / {ii}')
+            L2.config(text=f'  |  {s2} / {ii}')
         if s1==ii or s2==ii:
             gaming=0
     if s1==ii:
@@ -465,7 +473,7 @@ def game():
                 exec(p_name[p1t]+'_hit(1)')
             #print(vy)
         M.move(ball,x-x_c,y-y_c)
-        if random.randint(0,1)==0:
+        if random.randint(0,1)==0 and not NO_WAIT:
             _thread.start_new_thread(stamp,(x,y))
 
         if abs(vx)<abs(0.3*vy):
@@ -591,7 +599,7 @@ def forcestop(x):
 
 
 def load_config():
-    global MAX_POINTS, AUTO_SERVE, LOGSTATE
+    global MAX_POINTS, AUTO_SERVE, LOGSTATE, NO_WAIT
     if os.path.exists('config.json'):
         try:
             with open('config.json', 'r') as f:
