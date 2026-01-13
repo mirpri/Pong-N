@@ -164,42 +164,78 @@ def get_target_x(ball_x, ball_y, ball_vx, ball_vy, target_y):
     else:
         return predicted_x
 
-def calculate_reward(current_state: np.ndarray, last_state: np.ndarray, player: int, last_action: int) -> float:
+import numpy as np
+
+import numpy as np
+
+def calculate_reward(current_state: np.ndarray, last_state: np.ndarray, player: int, last_action: int, prev_action: int = None) -> float:
     """
-    Calculate the reward based on the transition between the last state and the current state.
+    Calculate reward.
+    Added 'prev_action' argument to detect hesitation (jittering).
     """
+    # Unpack state
     _, last_y, _, last_vy, _ = last_state
-    _, current_y, _, current_vy, pad_pos = current_state
+    current_x, current_y, _, current_vy, pad_pos = current_state
     
-    reward = -0.005 # Small penalty per step
+    # Ensure float types
+    current_x = float(current_x)
+    pad_pos = float(pad_pos)
+
+    # Constants
+    PLAYER_PAD_Y_COORD = 700
+    DISTANCE_PENALTY_COEFFICIENT = 0.1
+    BASE_MISS_PENALTY = 25.0
     
-    # 1. Determine if the ball hit the player's side
+    # 1. Base Penalty (Time penalty)
+    reward = -0.005 
+
+    # --- 2. HESITATION / JITTER PENALTY (New) ---
+    # Hesitation = Switching direction frequently (e.g., Left to Right)
+    # Assuming Action 1 = Right, Action 2 = Left, Action 0 = Stay (example)
+    if prev_action is not None:
+        if last_action != prev_action:
+            # General penalty for changing any action (encourages smoothness)
+            reward -= 0.1 
+            
+            # Heavy penalty for direct direction reversal (Left <-> Right)
+            # Assuming 1 is Right and 2 is Left
+            if (last_action == 1 and prev_action == 2) or (last_action == 2 and prev_action == 1):
+                reward -= 0.5 # Strong punishment for "shaking"
+                # print("Punish: Jittering!")
+
+    # --- 3. Hit or Miss Logic ---
     if player == 1:
-        # P1 is on the bottom (Y=700). Hitting happens when Y is large.
         is_my_turn = last_vy > 0 and current_vy < 0 and last_y < PLAYER_PAD_Y_COORD
-        
         if is_my_turn:
-            # Check for successful hit (ball changes vertical direction on my side)
-            reward += 100.0 # HUGE POSITIVE REWARD for hitting the ball
-            print("Successful hit! Rewarded.")
+            reward += 25.0
+            # print("Hit!")
         
-        # Check for loss (ball flies past the target Y)
+        # Missed ball
         if last_y < PLAYER_PAD_Y_COORD and current_y >= PLAYER_PAD_Y_COORD and current_vy > 0:
-            reward -= 10.0 # HUGE NEGATIVE REWARD for missing the ball
-            print("Missed the ball! Heavy penalty.")
-    
-    # 3. Simple reward for moving towards the calculated target position
-    target_x = get_target_x(current_state[0], current_state[1], current_state[2], current_state[3], PLAYER_PAD_Y_COORD)
-    if pad_pos < target_x:
-        if( last_action == 1):
-            reward += 0.1 # Small reward for moving towards target
-        else:
-            reward -= 0.1 # Small penalty for not moving towards target
-    elif pad_pos > target_x:
-        if( last_action == 2):
-            reward += 0.1 # Small reward for moving towards target
-        else:
-            reward -= 0.1 # Small penalty for not moving towards target
+            distance = abs(current_x - pad_pos)
+            penalty = BASE_MISS_PENALTY + (distance * DISTANCE_PENALTY_COEFFICIENT)
+            reward -= penalty
+            return reward # Early return on death
+
+    # --- 4. Guidance Logic ---
+    try:
+        target_x = get_target_x(current_state[0], current_state[1], current_state[2], current_state[3], PLAYER_PAD_Y_COORD)
+        
+        # Guidance reward (Moving towards target)
+        if pad_pos < target_x:
+            if last_action == 1: reward += 0.1
+            else: reward -= 0.5
+        elif pad_pos > target_x:
+            if last_action == 2: reward += 0.1
+            else: reward -= 0.5
+            
+        # --- 5. STAGNATION PENALTY (New) ---
+        # If agent stops (Action 0) but is far from target -> Hesitation/Laziness
+        if last_action == 0 and abs(pad_pos - target_x) > 10:
+             reward -= 0.5 # Punish for standing still when not aligned
+             
+    except Exception:
+        pass
 
     return reward
 
